@@ -1,5 +1,8 @@
 version: '3'
 
+volumes:
+  sqlite3:
+
 services:
   app:
     build: ./
@@ -7,3 +10,5 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    volumes:
+      - sqlite3:/app/fastapi_app/database/

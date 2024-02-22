@@ -23,3 +23,11 @@ class Data(DataBase):
     model_config = ConfigDict(from_attributes=True)
     timestamp: datetime
     id: int
+
+
+class DateDevice(BaseModel):
+    """JSON для передачи дат."""
+
+    start_date: str
+    end_date: str
+    device: str
