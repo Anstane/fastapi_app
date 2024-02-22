@@ -20,10 +20,3 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(router_v1)
-
-# @app.middleware("http") # Нужно автоматизировать процесс получения имя устройства.
-# async def add_device_id_to_request(request: Request, call_next):
-#     device_id = request.headers.get("X-Device-ID")
-#     request.state.device_id = device_id
-#     response = await call_next(request)
-#     return response

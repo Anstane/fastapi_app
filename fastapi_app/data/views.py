@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import db_help
-from .schemas import Data, DataCreate, DateFormat
+from .schemas import Data, DataCreate, DateDevice
 from . import crud
 from . import statistic
 
@@ -15,7 +15,14 @@ async def get_data(
 ):
     """Получаем все объекты данных."""
 
-    return await crud.get_all_data(session=session)
+    data =  crud.get_all_data(session=session)
+    if data:
+        return data
+    
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail='База данных пуста.'
+    )
 
 
 @router.post('/', response_model=Data)
@@ -41,7 +48,7 @@ async def get_data_obj(
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail=f'Данные не существуют.'
+        detail='Данные не существуют.'
     )
 
 
@@ -52,27 +59,31 @@ async def get_data_device(
 ):
     """Получаем все данные передавая устройство."""
 
-    device_exists = await statistic.check_device_exists(session=session, device=device)
-    if device_exists:
-        return await crud.get_data_device(session=session, device=device)
+    data = await statistic.get_data_by_device(session=session, device=device)
+    if data:
+        return data
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail=f'Устройство {device} не найдено.'
+        detail=f'Записей по устройству {device} не найдено.'
     )
 
 
 @router.post('/statistics/')
 async def get_statistics_date(
-    dates: DateFormat,
+    date_device: DateDevice,
     session: AsyncSession = Depends(db_help.scoped_session_dependency),
 ):
     """Высчитываем статистику по устройству за указанный временной период."""
 
-    return {
-        dates.end_date,
-        dates.start_date
-    }
+    data = await statistic.get_data_by_date_and_device(session=session, data_in=date_device)
+    if data:
+        return await statistic.get_statistics(data)
+    
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail='Данные по атрибутам не существуют.'
+    )
 
 
 @router.get('/statistics/{device}/')
@@ -82,11 +93,11 @@ async def get_statistics_device(
 ):
     """Получаем статистику по устройству за всё время."""
 
-    device_exists = await statistic.check_device_exists(session=session, device=device)
-    if device_exists:
-        return await statistic.get_statistics(session=session, device=device)
+    data = await statistic.get_data_by_device(session=session, device=device)
+    if data:
+        return await statistic.get_statistics(data)
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail=f'Устройство {device} не найдено.'
+        detail=f'Записей по устройству {device} не найдено.'
     )

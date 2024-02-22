@@ -1,63 +1,80 @@
-from sqlalchemy import select, func
+from datetime import datetime
+
+from sqlalchemy import select, and_
 from sqlalchemy.engine import Result
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import Data
+from .schemas import DateDevice
 
 # Логика для взимодействия со статистикой.
 
-async def check_device_exists(session: AsyncSession, device: str) -> bool:
-    """Проверяем, что устройство есть в БД."""
+async def get_data_by_device(session: AsyncSession, device: str) -> list[Data]:
+    """Получаем все записи по устройству."""
 
     stmt = select(Data).where(Data.device == device)
     result: Result = await session.execute(stmt)
-    device_obj = result.scalars().first()
-    return device_obj is not None
+    data = result.scalars().all()
+
+    return data
 
 
-async def get_parameter_statistics(session: AsyncSession, column, device: str) -> dict:
-    """Получаем статистику по полю."""
+async def get_data_by_date_and_device(session: AsyncSession, data_in: DateDevice) -> list[Data]:
+    """Эта функция подготавливает данные под условия по дате и устройству."""
 
-    stmt = select(
-        func.min(column),
-        func.max(column),
-        func.count(column),
-        func.sum(column),
-    ).where(
-        Data.device == device
-    ) # Получаем доступные данные через агрегирующие функции.
+    # Форматируем полученную строку от пользователя в формате YY-MM-DD
+    start_date = datetime.strptime(data_in.start_date, '%Y-%m-%d')
+    end_date = datetime.strptime(data_in.end_date, '%Y-%m-%d')
 
-    result = await session.execute(stmt)
-    statistics = result.first()
+    stmt = (
+        select(Data)
+        .filter(
+            and_(
+                Data.timestamp >= start_date,
+                Data.timestamp <= end_date,
+                Data.device == data_in.device
+            )
+        )
+    )
 
-    # Функция median() отсутствует, поэтому реализуем её сами.
-    values = await session.execute(select(column).where(Data.device == device))
-    values = [v[0] for v in values.all()] # Получаем список значений по устройству.
+    result: Result = await session.execute(stmt)
+    data = result.scalars().all()
 
-    median_value = None
-    if values: # Сортируем значения и находим центральное.
-        sorted_values = sorted(values)
-        n = len(sorted_values)
-        if n % 2 == 0:
-            median_value = (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2
-        else:
-            median_value = sorted_values[n // 2]
+    return data
+
+
+async def get_parameter_statistics(data: list[Data], column) -> dict:
+    """Подсчитываем статистику полученной выборки по полю."""
+
+    values = [getattr(item, column.key) for item in data] # Генератор получающий атрибуты по полю.
+
+    min_value = min(values)
+    max_value = max(values)
+    count = len(values)
+    sum_value = sum(values)
+
+    sorted_values = sorted(values)
+    n = len(sorted_values)
+    if n % 2 == 0:
+        median_value = (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2
+    else:
+        median_value = sorted_values[n // 2]
 
     return {
-        "min": statistics[0],
-        "max": statistics[1],
-        "count": statistics[2],
-        "sum": statistics[3],
+        "min": min_value,
+        "max": max_value,
+        "count": count,
+        "sum": sum_value,
         "median": median_value,
     }
 
 
-async def get_statistics(session: AsyncSession, device: str) -> dict:
-    """Передаём параметры для высчитывания статистики."""
+async def get_statistics(data: list[Data]) -> dict:
+    """Передаём поля и данные для высчитывания статистики."""
 
-    statistics_x = await get_parameter_statistics(session, Data.x, device)
-    statistics_y = await get_parameter_statistics(session, Data.y, device)
-    statistics_z = await get_parameter_statistics(session, Data.z, device)
+    statistics_x = await get_parameter_statistics(data, Data.x)
+    statistics_y = await get_parameter_statistics(data, Data.y)
+    statistics_z = await get_parameter_statistics(data, Data.z)
 
     return {
         "x": statistics_x,

@@ -25,8 +25,9 @@ class Data(DataBase):
     id: int
 
 
-class DateFormat(BaseModel):
+class DateDevice(BaseModel):
     """JSON для передачи дат."""
 
-    start_date: datetime
-    end_date: datetime
+    start_date: str
+    end_date: str
+    device: str
