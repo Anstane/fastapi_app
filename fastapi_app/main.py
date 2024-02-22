@@ -9,8 +9,7 @@ from data import router as router_v1
 async def lifespan(app: FastAPI):
     """
     События цикла жизни приложения.
-    
-    При запуске создается объекты базы данных.
+    При запуске создаются все очищается старая и создаётся новая таблица.
     """
 
     async with db_help.engine.begin() as conn:
